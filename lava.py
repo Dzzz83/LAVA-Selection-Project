@@ -70,7 +70,8 @@ def load_data_corrupted(corrupt_type='shuffle', dataname=None, data=None, valid_
 # Get list of all indices of a dataset (subset)
 # We use a train loader here
 def get_indices(singleloader):
-    return singleloader.batch_sampler.sampler.indices
+    # return singleloader.batch_sampler.sampler.indices
+    return getattr(singleloader.batch_sampler.sampler, 'indices', list(range(len(singleloader.dataset))))
     
 # We will use a pretrained feature extractor from 'checkpoint' folder
 def load_pretrained_feature_extractor(feature_extractor_name, device):
@@ -83,10 +84,19 @@ def load_pretrained_feature_extractor(feature_extractor_name, device):
     
 # Get dual solution of OT problem
 def get_OT_dual_sol(feature_extractor, trainloader, testloader, training_size=10000, p=2, resize=32, device='cuda'):
+    # embedder = feature_extractor.to(device)
+    # embedder.fc = torch.nn.Identity()
+    # for p in embedder.parameters():
+    #     p.requires_grad = False
+
     embedder = feature_extractor.to(device)
-    embedder.fc = torch.nn.Identity()
-    for p in embedder.parameters():
-        p.requires_grad = False
+    embedder.eval()
+    for param in embedder.parameters():
+        param.requires_grad = False
+    
+    # Existing identity logic
+    if hasattr(embedder, 'fc'):
+        embedder.fc = torch.nn.Identity()
 
     # Here we use same embedder for both datasets
     feature_cost = FeatureCost(src_embedding = embedder,
@@ -110,10 +120,21 @@ def get_OT_dual_sol(feature_extractor, trainloader, testloader, training_size=10
 
 
     tic = time.perf_counter()
-    dual_sol = dist.dual_sol(maxsamples = training_size, return_coupling = True)
+    # dual_sol = dist.dual_sol(maxsamples = training_size, return_coupling = True)
 
+    # toc = time.perf_counter()
+    # print(f"distance calculation takes {toc - tic:0.4f} seconds")
+
+    # for i in range(len(dual_sol)):
+    #     dual_sol[i] = dual_sol[i].to('cpu')
+    # return dual_sol
+
+    dual_sol = dist.dual_sol(maxsamples = training_size, return_coupling = True)
     toc = time.perf_counter()
     print(f"distance calculation takes {toc - tic:0.4f} seconds")
+    
+    if isinstance(dual_sol, list) and len(dual_sol) > 0:
+        dual_sol[0] = dual_sol[0].flatten()
 
     for i in range(len(dual_sol)):
         dual_sol[i] = dual_sol[i].to('cpu')

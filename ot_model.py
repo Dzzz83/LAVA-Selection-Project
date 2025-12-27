@@ -96,18 +96,20 @@ def setup_logger(args, exp_name):
 
 def run_lava_valuation(model, train_ds, val_ds, logger):
     """Computes LAVA dual solutions as sample quality scores."""
+    # Ensure model is in eval mode for valuation
+    model.eval() 
+    
     train_loader = torch.utils.data.DataLoader(train_ds, batch_size=128, shuffle=False, num_workers=4)
     val_loader = torch.utils.data.DataLoader(val_ds, batch_size=128, shuffle=False, num_workers=4)
     
-    loaders = {'train': train_loader, 'test': val_loader}
-    shuffle_ind = [] 
-    
     logger.info(">>> [LAVA] Computing Transport Costs...")
-    # Using the LAVA API to compute dual solutions
-    dual_sol, trained_with_flag = lava.compute_dual(
-        model, loaders['train'], loaders['test'], 
-        len(train_ds), shuffle_ind, resize=32
-    )
+    
+    # Wrap in no_grad to prevent the OTDD library from breaking the grad chain
+    with torch.no_grad():
+        dual_sol, trained_with_flag = lava.compute_dual(
+            model, train_loader, val_loader, 
+            len(train_ds), [], resize=32
+        )
     
     # Extract and flatten scores
     if isinstance(dual_sol, (list, tuple)):
@@ -194,25 +196,29 @@ def main():
                     if select_ratio is not None and (epoch == 1 or epoch % 5 == 0):
                         logger.info(f"[Epoch {epoch}] Updating Selection with LAVA OT...")
                         
-                        # Use clean transform for valuation
                         dataset.transform = clean_transform
                         num_total = len(dataset)
                         
+                        # Call the valuation
                         lava_scores = run_lava_valuation(model, dataset, val_dataset, logger)
 
-                        # Match scores to dataset size
+                        # --- THE CRITICAL GRADIENT RESTORE ---
+                        torch.set_grad_enabled(True)
+                        for param in model.parameters():
+                            param.requires_grad = True
+                        model.train() 
+                        # -------------------------------------
+
                         if len(lava_scores) != num_total:
                             logger.warning(f"Shape Mismatch! Resizing scores from {len(lava_scores)} to {num_total}")
                             lava_scores = np.resize(lava_scores, num_total)
 
-                        # Higher dual values = higher importance/value
                         sorted_indices = np.argsort(lava_scores)[::-1]
                         num_keep = int(num_total * select_ratio)
                         current_indices = sorted_indices[:num_keep]
                         
                         logger.info(f"LAVA Selected {len(current_indices)}/{num_total} samples.")
 
-                        # Restore train transform and update loader
                         dataset.transform = train_transform
                         train_loader, _ = create_dataloader(train_dataset=dataset, val_dataset=val_dataset, batch_size=args.batch_size, num_workers=args.num_workers, select_indices=current_indices)
                     

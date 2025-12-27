@@ -296,7 +296,8 @@ class DatasetDistance():
         if (targets1 is None) or self.ignore_source_labels:
             vals1, cts1 = torch.unique(targets1, return_counts=True)
         else:
-            vals1, cts1 = torch.unique(targets1[idxs1], return_counts=True)
+            # vals1, cts1 = torch.unique(targets1[idxs1], return_counts=True)
+            vals1, cts1 = torch.unique(torch.as_tensor(targets1).long()[idxs1], return_counts=True)
 
         ## Ignore everything with a label occurring less than k times
         self.V1 = torch.sort(vals1[cts1 >= self.min_labelcount])[0]
@@ -317,7 +318,7 @@ class DatasetDistance():
         if (targets2 is None) or self.ignore_target_labels:
             vals2, cts2 = torch.unique(targets2, return_counts=True)
         else:
-            vals2, cts2 = torch.unique(targets2[idxs2], return_counts=True)
+            vals2, cts2 = torch.unique(torch.as_tensor(targets2).long()[idxs2], return_counts=True)
 
         ## Ignore everything with a label occurring less than k times
         self.V2 = torch.sort(vals2[cts2 >= self.min_labelcount])[0]
