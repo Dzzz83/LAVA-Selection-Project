@@ -31,8 +31,7 @@ from torch.utils.data import Dataset, TensorDataset, DataLoader
 
 from vgg import vgg16
 from preact_resnet import PreActResNet18
-from resnet import ResNet18
-
+from models.resnet import ResNet18
 
 # Load clean data
 # Returns dataloaders, can be accessed at ['train'], ['test'], and ['valid'] if not 0

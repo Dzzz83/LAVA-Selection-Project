@@ -21,8 +21,8 @@ import torchvision.transforms as transforms
 import torchvision.transforms.functional as TF
 import torchvision.datasets as dset
 
-import torchtext
-from torchtext.data.utils import get_tokenizer
+# import torchtext
+# from torchtext.data.utils import get_tokenizer
 from copy import deepcopy as dpcp
 
 import h5py
